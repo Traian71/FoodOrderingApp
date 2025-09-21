@@ -1,0 +1,173 @@
+
+## **1. 🎯 Objective**
+
+Build a digital platform for **Simon’s Freezer Meals (SFM)** that centralizes menu browsing, ordering, subscription management, and delivery tracking. The app should deliver a **seamless member experience** while reducing operational workload through **automation**.
+
+---
+
+## **2. 🧑‍💻 User Flows & Features**
+
+### **A.**
+
+### **Authentication & Accounts**
+
+- **Sign-up/Login:** Email + password with verification.
+- **Profile Management:** Name, email, phone, address(es), delivery zone.
+- **Account Settings:** Notification preferences (email/SMS/push), payment method, invoices.
+
+### **B.**
+
+### **Subscription & Wallet**
+
+- **Subscription Plans:** 4 tiers (8, 16, 24, 28 meals/month).
+- **Plan Management:** Upgrade/downgrade, pause/resume, cancel, renew.
+- **Wallet System:**
+    - Monthly token deposits.
+    - Rollover logic (cap = plan limit).
+    - Token ledger (transaction history).
+    - Optional top-up with extra tokens (cash purchase).
+
+### **C.**
+
+### **Dashboard (Home)**
+
+- Snapshot: wallet balance, freezer stock, next delivery date.
+- Quick access: Menu, Orders, Account, Subscription.
+- Community/leaderboard (v2).
+- Notifications (e.g. “New menu live,” “X tokens expiring”).
+
+### **D.**
+
+### **Menu & Ordering**
+
+- **Menu Display:** 4–6 dishes per cycle
+- **Dish Page:** Image, ingredients, nutrition, pairing/topping suggestions, preparation tips, user can choose protein version.
+- **Ordering Flow:**
+    - Add meals → tokens deducted.
+    - Cart + summary before checkout.
+    - Confirmation (meals, delivery date, token balance).
+- **Rules:** Order window cut-off dates, token limits, zone-based delivery linking.
+- **History:** Past orders, invoices/receipts.
+
+### **E.**
+
+### **Diet Preferences**
+
+- Member selects dietary preferences (meat, pescatarian, vegan, vegetarian).
+- Option to flag allergens, foods to avoid, and favorites.
+- Menu filtered accordingly.
+
+### **F.**
+
+### **Delivery**
+
+- Delivery week auto-assigned by zone (Group 1–4).
+- Members can add multiple addresses (home/work).
+- Delivery notifications + status updates (prepping, packed, out for delivery).
+
+---
+
+## **3. 🛠 Backend/Admin Features (for Simon)**
+
+- **Ingredient Database:** CRUD, nutritional data per 100g.
+- **Dish Builder:** Tags, protein, ingredients, nutrition, instructions, recipe scaling.
+- **Dish Library:** Search, filter, archive.
+- **Menu Builder:** Pull dishes into monthly menu, set protein options.
+- **Orders Export:** By delivery zone + member.
+- **Delivery Tools:** Member delivery sheet with notes (e.g. “leave by door”).
+- **Token & Member Management:** Adjust tokens manually, track churn.
+- **Reporting (v2):** Popularity, profitability, engagement.
+
+---
+
+## **4. 📊 Success Metrics (KPIs)**
+
+- **Ordering Completion:** >90%
+- **Payment Success:** >98%
+- **Avg. Time to Order:** <3 mins
+- **Notification Delivery:** >99%
+- **System Uptime:** 99%+
+- **Error Rate:** <3%
+
+---
+
+## **5. 🔧 Tech Requirements (optional)**
+
+- **Frontend:** React/Next.js (responsive web, mobile-first).
+- **Backend:** Maybe Python, or whatever suits best
+- **DB:** Supabase.
+- **Payments:** Stripe + MobilePay integration.
+- **Auth:** Secure login, GDPR compliance (EU servers). through supabase cloud
+- **Hosting:** Vercel cloud
+- **Communication:** Twilio/Mailgun/Mailchimp for email/SMS
+- **Analytics:** Amplitude for product tracking.
+
+---
+
+## **6. 🧪 Testing & QA**
+
+- Unit tests: ordering, wallet updates, subscription changes.
+- Manual QA: tokens deducted correctly, order confirmed, delivery scheduled.
+- Staging environment before release.
+- Load test with 500 concurrent members (Year 1 target).
+
+---
+
+## **7. 🚀 V1 vs V2**
+
+### **V1 Scope**
+
+- Member onboarding (sign-up, profile).
+- Subscription + wallet logic.
+- Menu + ordering flow.
+- Delivery scheduling (zone-based).
+- Notifications (order confirmations, reminders).
+- Admin back-end (ingredients, menu, orders export).
+
+### **V2 (Future)**
+
+- Member reviews + ratings.
+- Community leaderboard/referral tracking.
+- QR code scanning for freezer inventory.
+- Route optimization API.
+- Advanced analytics + profitability reports.
+
+---
+
+## **8. 🧱 Dependencies**
+
+- Stripe/MobilePay accounts set up.
+- Delivery zones finalized.
+- Ingredient & dish data uploaded.
+- Content (photos, copy) for dish pages.
+
+## **9. 🧱 Pages**
+
+- Landing Page (Home) -> Are you a member? Then: Log in. No? Then: Getting a tour of the club (Guest Mode).
+- Tour of the club (Guest Mode) -> Discover Food & Concept -> Menu Overview Page -> Small Guest Surprize (trial tockens for a meal) -> Small explanation (How it works, tokens, pricing, what happens now) -> Want to taste? ->  Menu Ordering View (make an order) -> Select a postal zip code -> If we cover that area, go on with the checkout. If not, we re sorry, sign up to keep up to date with us
+- After log in -> Dashboard (Home) (For logged in/member state) (+a greeting message)
+- Dashboard (Home) (For logged in/member state): Account, Menu/Order, Cart
+- Account: Account details (Personal Info, Billing/Payment), Wallet & Membership (Token balance, Membership(Active Plan, Change Plan, Pause/Resume, Cancel, Renew, Invoice History)), Orders (order history, upcoming/active order)
+- 
+
+
+
+- Login -> 
+- Sign up -> 
+- Dashboard (Home) (For logged in/member state) -> 
+- Menu Overview Page (for guests and members) -> 
+- Menu Detail Page (for guests and members) -> 
+- Order History (for members) -> 
+- Subscription (for members) -> 
+- Account (for members) -> 
+- Settings (for members) -> 
+- Notifications -> 
+- Help -> 
+- About -> 
+- Contact -> 
+- Logout -> 
+-
+-
+-
+-
+-
