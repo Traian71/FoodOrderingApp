@@ -5,7 +5,10 @@ Build a digital platform for **Simon’s Freezer Meals (SFM)** that centralizes 
 
 ---
 
-## **2. 🧑‍💻 User Flows & Features**
+
+## **1. 📚 Database Schema**
+
+- all this documentation reffers to @migrations folder, where we have in @initial_schema with all the tables. do check all the tables and relationships, triggers and functions first to understand the database structure.
 
 ### **A.**
 
@@ -19,35 +22,38 @@ Build a digital platform for **Simon’s Freezer Meals (SFM)** that centralizes 
 
 ### **Subscription & Wallet**
 
-- **Subscription Plans:** 4 tiers (8, 16, 24, 28 meals/month).
+- **Subscription Plans:** 6 tiers (from the subscription_plans table).
 - **Plan Management:** Upgrade/downgrade, pause/resume, cancel, renew.
 - **Wallet System:**
     - Monthly token deposits.
-    - Rollover logic (cap = plan limit).
+    - Rollover logic (cap = plan limit * 150%).
     - Token ledger (transaction history).
     - Optional top-up with extra tokens (cash purchase).
 
 ### **C.**
 
-### **Dashboard (Home)**
+### **Dashboard (Home), after user logges in**
 
-- Snapshot: wallet balance, freezer stock, next delivery date.
-- Quick access: Menu, Orders, Account, Subscription.
-- Community/leaderboard (v2).
-- Notifications (e.g. “New menu live,” “X tokens expiring”).
-
+- Greeting message
+- Will consist of a caroussel with all the menus (past/future ones and the one available) all from the menu_months table.
+- Quick access buttons on the nav bar (User & Cart)
+- User button will contain: Account Details, Wallet & Membership, Orders
+        - Account Details: Personal Info (check users and user_adresses tables), Billing/Payment
+        - Wallet & Membership: Token Balance, Membership (Active Plan, Change Plan, Pause/Resume (rules), Cancel, Renew)
+        - Orders: Active Orders and Order history (check orders table for both), Invoice history of used tokens for the orders (check token_transactions table)
+-
+- Notifications (e.g. “New menu live").
 ### **D.**
 
-### **Menu & Ordering**
-
+### **Menu & Ordering, after user clicks on the active menu from the home caroussel**
+    **User cannot order until the users.user_assigned is true**
 - **Menu Display:** 4–6 dishes per cycle
-- **Dish Page:** Image, ingredients, nutrition, pairing/topping suggestions, preparation tips, user can choose protein version.
+- **Dish Page:** Image, ingredients, nutrition, pairing/topping suggestions, preparation tips, user can choose protein version. (from the dishes table)
 - **Ordering Flow:**
     - Add meals → tokens deducted.
     - Cart + summary before checkout.
     - Confirmation (meals, delivery date, token balance).
-- **Rules:** Order window cut-off dates, token limits, zone-based delivery linking.
-- **History:** Past orders, invoices/receipts.
+- **Rules:** Order window cut-off dates, items limits(orders can be 8 12 18 20 24 28 items), group-based delivery linking (4 groups, the admin will assign eaach user to a group). Each user can order once a month. He will be assigned to one of four groups, therefore have a 1 week window to order.
 
 ### **E.**
 
@@ -56,13 +62,14 @@ Build a digital platform for **Simon’s Freezer Meals (SFM)** that centralizes 
 - Member selects dietary preferences (meat, pescatarian, vegan, vegetarian).
 - Option to flag allergens, foods to avoid, and favorites.
 - Menu filtered accordingly.
+- Use tables user_allergens and user_dietary_preferences
 
 ### **F.**
 
 ### **Delivery**
 
-- Delivery week auto-assigned by zone (Group 1–4).
-- Members can add multiple addresses (home/work).
+- Delivery week auto-assigned by group (Group 1–4).
+- Members can add only one primary address.
 - Delivery notifications + status updates (prepping, packed, out for delivery).
 
 ---
@@ -70,10 +77,11 @@ Build a digital platform for **Simon’s Freezer Meals (SFM)** that centralizes 
 ## **3. 🛠 Backend/Admin Features (for Simon)**
 
 - **Ingredient Database:** CRUD, nutritional data per 100g.
-- **Dish Builder:** Tags, protein, ingredients, nutrition, instructions, recipe scaling.
+- **Dish Builder:** Tags, protein, ingredients, nutrition, instructions, recipe scaling, protein options.
 - **Dish Library:** Search, filter, archive.
-- **Menu Builder:** Pull dishes into monthly menu, set protein options.
-- **Orders Export:** By delivery zone + member.
+- **Menu Builder:** Pull dishes into monthly menu, set protein options, select from a calendar 4 time periods, for each group - this periods will determine the order window for each group.
+- **Orders Dashboard:** Admin can filter orders by week + summary for total dishes of each kind (73 pizzas, 60 spicy chicken). Admin will start cooking a single dish type a time, so he will see the orders for that kind and can start cooking. After he gets done with that dish, he will set this dish as being cooked, and all the orders containing that dish will be marked as cooked. (not the full order cooked, just that dish). So users can track for their order the status of each dish.
+- **Assigning a user to a group** (from the users, token_wallets, users_groups, user_subscriptions table): admin need 3 things before asigning a member to a group (plan type, adress, tokens active per each group)
 - **Delivery Tools:** Member delivery sheet with notes (e.g. “leave by door”).
 - **Token & Member Management:** Adjust tokens manually, track churn.
 - **Reporting (v2):** Popularity, profitability, engagement.

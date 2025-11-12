@@ -29,7 +29,7 @@ CREATE TRIGGER update_token_wallets_updated_at BEFORE UPDATE ON public.token_wal
 CREATE TRIGGER update_ingredients_updated_at BEFORE UPDATE ON public.ingredients
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_menu_weeks_updated_at BEFORE UPDATE ON public.menu_weeks
+CREATE TRIGGER update_menu_months_updated_at BEFORE UPDATE ON public.menu_months
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_dishes_updated_at BEFORE UPDATE ON public.dishes
@@ -86,20 +86,20 @@ CREATE TRIGGER update_wallet_on_subscription_change
 CREATE OR REPLACE FUNCTION process_token_transaction()
 RETURNS TRIGGER AS $$
 DECLARE
-    current_balance INTEGER;
+    wallet_balance INTEGER;  -- Renamed from current_balance to avoid conflict
     new_balance INTEGER;
 BEGIN
     -- Get current wallet balance
-    SELECT current_balance INTO current_balance
+    SELECT current_balance INTO wallet_balance
     FROM public.token_wallets
     WHERE user_id = NEW.user_id;
     
     -- Calculate new balance
-    new_balance := current_balance + NEW.amount;
+    new_balance := wallet_balance + NEW.amount;
     
     -- Ensure balance doesn't go negative
     IF new_balance < 0 THEN
-        RAISE EXCEPTION 'Insufficient token balance. Current: %, Requested: %', current_balance, ABS(NEW.amount);
+        RAISE EXCEPTION 'Insufficient token balance. Current: %, Requested: %', wallet_balance, ABS(NEW.amount);
     END IF;
     
     -- Update the balance_after field
@@ -411,14 +411,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to clean up expired menu weeks
-CREATE OR REPLACE FUNCTION cleanup_expired_menu_weeks()
+-- Function to clean up expired menu months
+CREATE OR REPLACE FUNCTION cleanup_expired_menu_months()
 RETURNS INTEGER AS $$
 DECLARE
     cleanup_count INTEGER;
 BEGIN
-    -- Mark menu weeks as inactive if they're more than 30 days old
-    UPDATE public.menu_weeks
+    -- Mark menu months as inactive if they're more than 30 days old
+    UPDATE public.menu_months
     SET is_active = false
     WHERE end_date < CURRENT_DATE - INTERVAL '30 days'
     AND is_active = true;
@@ -428,9 +428,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get menu for specific week with user dietary preferences
+-- Function to get menu for specific month with user dietary preferences
 CREATE OR REPLACE FUNCTION get_filtered_menu(
-    menu_week_uuid UUID,
+    menu_month_uuid UUID,
     user_uuid UUID DEFAULT NULL
 )
 RETURNS TABLE (
@@ -469,7 +469,7 @@ BEGIN
         END as matches_preferences
     FROM public.menu_items mi
     JOIN public.dishes d ON mi.dish_id = d.id
-    WHERE mi.menu_week_id = menu_week_uuid
+    WHERE mi.menu_month_id = menu_month_uuid
     AND d.is_active = true
     ORDER BY mi.display_order, d.name;
 END;
@@ -510,6 +510,37 @@ BEGIN
         SELECT 1 FROM public.admin_users 
         WHERE id = user_id AND is_active = true
     );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to handle new admin user creation
+CREATE OR REPLACE FUNCTION public.handle_new_admin_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Check if the new user's email should be an admin
+    IF NEW.email IN ('admin@simonsfreezermeals.com', 'root@simonsfreezermeals.com', 'simon@simonsfreezermeals.com') THEN
+        INSERT INTO public.admin_users (
+            id,
+            email,
+            first_name,
+            last_name,
+            role,
+            is_active,
+            created_at,
+            updated_at
+        ) VALUES (
+            NEW.id,
+            NEW.email,
+            COALESCE(NEW.raw_user_meta_data->>'first_name', 'Admin'),
+            COALESCE(NEW.raw_user_meta_data->>'last_name', 'User'),
+            'root',
+            true,
+            NOW(),
+            NOW()
+        ) ON CONFLICT (id) DO NOTHING;
+    END IF;
+    
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -559,6 +590,27 @@ CREATE TRIGGER update_admin_users_updated_at
     BEFORE UPDATE ON public.admin_users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger to automatically add admin role for specific emails
+CREATE OR REPLACE FUNCTION setup_admin_trigger()
+RETURNS void AS $$
+BEGIN
+    -- Drop the trigger if it exists to avoid duplicates
+    DROP TRIGGER IF EXISTS on_auth_user_created_admin ON auth.users;
+    
+    -- Create the trigger
+    EXECUTE 'CREATE TRIGGER on_auth_user_created_admin
+        AFTER INSERT ON auth.users
+        FOR EACH ROW EXECUTE FUNCTION public.handle_new_admin_user();';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Execute the function to set up the trigger
+SELECT setup_admin_trigger();
+
+-- Grant necessary permissions
+GRANT EXECUTE ON FUNCTION public.handle_new_admin_user() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_new_admin_user() TO service_role;
 
 -- Admin dashboard statistics functions
 CREATE OR REPLACE FUNCTION get_total_members_count()
@@ -611,12 +663,12 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION get_weekly_menus_count()
+CREATE OR REPLACE FUNCTION get_monthly_menus_count()
 RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-    RETURN (SELECT COUNT(*) FROM public.menu_weeks WHERE is_active = true);
+    RETURN (SELECT COUNT(*) FROM public.menu_months WHERE is_active = true);
 END;
 $$;

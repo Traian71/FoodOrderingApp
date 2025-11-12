@@ -22,11 +22,11 @@ INSERT INTO public.ingredients (id, name, category, calories_per_100g, protein_p
 (uuid_generate_v4(), 'Ginger', 'spice', 80.00, 1.82, 17.77, 0.75, 2.00, '{}', true, true, true),
 (uuid_generate_v4(), 'Maple Syrup', 'sweetener', 260.00, 0.04, 67.04, 0.06, 0.00, '{}', true, true, true);
 
--- Insert sample menu weeks
-INSERT INTO public.menu_weeks (id, week_number, year, start_date, end_date, delivery_start_date, delivery_end_date, order_cutoff_date, is_active) VALUES
-(uuid_generate_v4(), 38, 2024, '2024-09-16', '2024-09-22', '2024-09-13', '2024-09-16', '2024-09-11 23:59:59+00', true),
-(uuid_generate_v4(), 39, 2024, '2024-09-23', '2024-09-29', '2024-09-20', '2024-09-23', '2024-09-18 23:59:59+00', true),
-(uuid_generate_v4(), 40, 2024, '2024-09-30', '2024-10-06', '2024-09-27', '2024-09-30', '2024-09-25 23:59:59+00', false);
+-- Insert sample menu months with updated 2025 dates
+INSERT INTO public.menu_months (id, month_number, year, start_date, end_date, delivery_start_date, delivery_end_date, order_cutoff_date, is_active) VALUES
+(uuid_generate_v4(), 9, 2025, '2025-09-01', '2025-09-30', '2025-08-28', '2025-08-31', '2025-08-25 23:59:59+00', true),
+(uuid_generate_v4(), 10, 2025, '2025-10-01', '2025-10-31', '2025-09-28', '2025-10-01', '2025-09-25 23:59:59+00', true),
+(uuid_generate_v4(), 11, 2025, '2025-11-01', '2025-11-30', '2025-10-29', '2025-11-01', '2025-10-26 23:59:59+00', false);
 
 -- Get ingredient IDs for dish creation
 DO $$
@@ -56,7 +56,7 @@ DECLARE
     dish4_id UUID := uuid_generate_v4();
     dish5_id UUID := uuid_generate_v4();
     
-    menu_week_38_id UUID;
+    menu_month_sep_id UUID;
 BEGIN
     -- Get ingredient IDs
     SELECT id INTO salmon_id FROM public.ingredients WHERE name = 'Salmon Fillet';
@@ -78,7 +78,7 @@ BEGIN
     SELECT id INTO ginger_id FROM public.ingredients WHERE name = 'Ginger';
     SELECT id INTO maple_syrup_id FROM public.ingredients WHERE name = 'Maple Syrup';
     
-    SELECT id INTO menu_week_38_id FROM public.menu_weeks WHERE week_number = 38 AND year = 2024;
+    SELECT id INTO menu_month_sep_id FROM public.menu_months WHERE month_number = 9 AND year = 2025;
 
     -- Insert sample dishes
     INSERT INTO public.dishes (id, name, description, preparation_instructions, prep_time_minutes, difficulty, dietary_tags, allergens, token_cost, is_active) VALUES
@@ -125,25 +125,41 @@ BEGIN
     (dish5_id, curry_paste_id, 25, 'g', 'green curry'),
     (dish5_id, squash_id, 150, 'g', 'cubed');
 
-    -- Insert menu items for week 38
-    INSERT INTO public.menu_items (menu_week_id, dish_id, protein_options, is_featured, display_order) VALUES
-    (menu_week_38_id, dish1_id, '{"salmon", "tofu"}', true, 1),
-    (menu_week_38_id, dish2_id, '{"chicken", "mushroom"}', false, 2),
-    (menu_week_38_id, dish3_id, '{}', false, 3),
-    (menu_week_38_id, dish4_id, '{}', false, 4),
-    (menu_week_38_id, dish5_id, '{}', false, 5);
+    -- Insert menu items for September menu
+    INSERT INTO public.menu_items (menu_month_id, dish_id, protein_options, is_featured, display_order) VALUES
+    (menu_month_sep_id, dish1_id, '{"salmon", "tofu"}', true, 1),
+    (menu_month_sep_id, dish2_id, '{"chicken", "mushroom"}', false, 2),
+    (menu_month_sep_id, dish3_id, '{}', false, 3),
+    (menu_month_sep_id, dish4_id, '{}', false, 4),
+    (menu_month_sep_id, dish5_id, '{}', false, 5);
 END $$;
 
 -- Insert sample delivery schedules
 DO $$
 DECLARE
-    menu_week_38_id UUID;
+    menu_month_sep_id UUID;
 BEGIN
-    SELECT id INTO menu_week_38_id FROM public.menu_weeks WHERE week_number = 38 AND year = 2024;
+    SELECT id INTO menu_month_sep_id FROM public.menu_months WHERE month_number = 9 AND year = 2025;
     
-    INSERT INTO public.delivery_schedules (delivery_group, menu_week_id, scheduled_date, time_window_start, time_window_end, driver_notes) VALUES
-    ('1', menu_week_38_id, '2024-09-13', '10:00', '14:00', 'Copenhagen area - morning delivery'),
-    ('2', menu_week_38_id, '2024-09-14', '10:00', '14:00', 'Aarhus area - morning delivery'),
-    ('3', menu_week_38_id, '2024-09-15', '10:00', '14:00', 'Odense area - morning delivery'),
-    ('4', menu_week_38_id, '2024-09-16', '10:00', '14:00', 'Other areas - morning delivery');
+    -- Delivery schedule for September menu
+    -- First week of deliveries
+    INSERT INTO public.delivery_schedules (delivery_group, menu_month_id, scheduled_date, time_window_start, time_window_end, driver_notes) VALUES
+    ('1', menu_month_sep_id, '2025-08-28', '10:00', '14:00', 'Copenhagen area - morning delivery'),
+    ('2', menu_month_sep_id, '2025-08-29', '10:00', '14:00', 'Aarhus area - morning delivery'),
+    ('3', menu_month_sep_id, '2025-08-30', '10:00', '14:00', 'Odense area - morning delivery'),
+    ('4', menu_month_sep_id, '2025-08-31', '10:00', '14:00', 'Other areas - morning delivery');
+    
+    -- Second week of deliveries (for mid-month orders)
+    INSERT INTO public.delivery_schedules (delivery_group, menu_month_id, scheduled_date, time_window_start, time_window_end, driver_notes) VALUES
+    ('1', menu_month_sep_id, '2025-09-14', '10:00', '14:00', 'Copenhagen area - morning delivery'),
+    ('2', menu_month_sep_id, '2025-09-15', '10:00', '14:00', 'Aarhus area - morning delivery'),
+    ('3', menu_month_sep_id, '2025-09-16', '10:00', '14:00', 'Odense area - morning delivery'),
+    ('4', menu_month_sep_id, '2025-09-17', '10:00', '14:00', 'Other areas - morning delivery');
+    
+    -- Third week of deliveries (for end-of-month orders)
+    INSERT INTO public.delivery_schedules (delivery_group, menu_month_id, scheduled_date, time_window_start, time_window_end, driver_notes) VALUES
+    ('1', menu_month_sep_id, '2025-09-28', '10:00', '14:00', 'Copenhagen area - morning delivery'),
+    ('2', menu_month_sep_id, '2025-09-29', '10:00', '14:00', 'Aarhus area - morning delivery'),
+    ('3', menu_month_sep_id, '2025-09-30', '10:00', '14:00', 'Odense area - morning delivery'),
+    ('4', menu_month_sep_id, '2025-10-01', '10:00', '14:00', 'Other areas - morning delivery');
 END $$;

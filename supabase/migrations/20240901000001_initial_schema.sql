@@ -5,6 +5,10 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Enable pg_net extension for HTTP requests (used in some functions)
+CREATE EXTENSION IF NOT EXISTS "http" WITH SCHEMA "extensions";
+CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA "extensions";
+
 -- Create custom types
 CREATE TYPE subscription_status AS ENUM ('active', 'paused', 'cancelled', 'pending');
 CREATE TYPE subscription_plan AS ENUM ('8', '16', '24', '28');
@@ -357,6 +361,10 @@ CREATE INDEX idx_billing_history_user_id ON public.billing_history(user_id);
 -- Admin role enum
 CREATE TYPE admin_role AS ENUM ('root', 'admin', 'manager');
 
+-- Guest system types
+CREATE TYPE guest_order_status AS ENUM ('pending', 'confirmed', 'preparing', 'packed', 'out_for_delivery', 'delivered', 'cancelled');
+CREATE TYPE guest_token_transaction_type AS ENUM ('initial_allocation', 'order_deduction', 'refund', 'adjustment');
+
 -- Admin users table (linked to auth.users)
 CREATE TABLE public.admin_users (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
@@ -372,6 +380,146 @@ CREATE TABLE public.admin_users (
     
     -- Constraints
     CONSTRAINT admin_users_email_check CHECK (email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$')
+);
+
+-- Guest profiles table
+CREATE TABLE public.guest_profiles (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    trial_tokens INTEGER DEFAULT 3 NOT NULL,
+    tokens_used INTEGER DEFAULT 0 NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '7 days') NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    
+    -- Contact information (collected during checkout)
+    first_name TEXT,
+    last_name TEXT,
+    phone TEXT,
+    email TEXT,
+    
+    -- Conversion tracking
+    converted_to_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    converted_at TIMESTAMP WITH TIME ZONE,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT guest_profiles_tokens_check CHECK (trial_tokens >= 0 AND tokens_used >= 0),
+    CONSTRAINT guest_profiles_tokens_used_check CHECK (tokens_used <= trial_tokens),
+    CONSTRAINT guest_profiles_phone_check CHECK (phone IS NULL OR phone ~ '^\\+?[1-9]\\d{1,14}$'),
+    CONSTRAINT guest_profiles_email_check CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$')
+);
+
+-- Guest addresses (for delivery)
+CREATE TABLE public.guest_addresses (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    guest_id UUID REFERENCES public.guest_profiles(id) ON DELETE CASCADE NOT NULL,
+    address_line_1 TEXT NOT NULL,
+    address_line_2 TEXT,
+    city TEXT NOT NULL,
+    postal_code TEXT NOT NULL,
+    country TEXT DEFAULT 'Denmark' NOT NULL,
+    delivery_group delivery_group NOT NULL,
+    delivery_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT guest_addresses_postal_code_check CHECK (postal_code ~ '^\\d{4}$')
+);
+
+-- Guest carts (similar to user_carts but for guests)
+CREATE TABLE public.guest_carts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    guest_id UUID REFERENCES public.guest_profiles(id) ON DELETE CASCADE NOT NULL UNIQUE,
+    menu_month_id UUID REFERENCES public.menu_months(id) ON DELETE CASCADE,
+    delivery_address_id UUID REFERENCES public.guest_addresses(id) ON DELETE SET NULL,
+    special_instructions TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Guest cart items
+CREATE TABLE public.guest_cart_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    cart_id UUID REFERENCES public.guest_carts(id) ON DELETE CASCADE NOT NULL,
+    dish_id UUID REFERENCES public.dishes(id) ON DELETE CASCADE NOT NULL,
+    quantity INTEGER DEFAULT 1 NOT NULL,
+    protein_option TEXT,
+    special_requests TEXT,
+    added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT guest_cart_items_quantity_check CHECK (quantity > 0),
+    UNIQUE(cart_id, dish_id, protein_option) -- Prevent duplicate items with same protein
+);
+
+-- Guest orders (similar to orders but for guests)
+CREATE TABLE public.guest_orders (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    guest_id UUID REFERENCES public.guest_profiles(id) ON DELETE CASCADE NOT NULL,
+    menu_month_id UUID REFERENCES public.menu_months(id) ON DELETE RESTRICT NOT NULL,
+    delivery_address_id UUID REFERENCES public.guest_addresses(id) ON DELETE RESTRICT NOT NULL,
+    status guest_order_status DEFAULT 'pending' NOT NULL,
+    total_tokens INTEGER NOT NULL,
+    total_meals INTEGER NOT NULL,
+    delivery_date DATE,
+    delivery_group delivery_group NOT NULL,
+    special_instructions TEXT,
+    
+    -- Guest specific fields
+    guest_name TEXT NOT NULL, -- Combined first + last name for display
+    guest_phone TEXT NOT NULL,
+    guest_email TEXT,
+    
+    -- Tracking fields
+    tracking_token UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL, -- For public order tracking
+    
+    -- Status timestamps
+    confirmed_at TIMESTAMP WITH TIME ZONE,
+    prepared_at TIMESTAMP WITH TIME ZONE,
+    packed_at TIMESTAMP WITH TIME ZONE,
+    out_for_delivery_at TIMESTAMP WITH TIME ZONE,
+    delivered_at TIMESTAMP WITH TIME ZONE,
+    cancelled_at TIMESTAMP WITH TIME ZONE,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT guest_orders_totals_check CHECK (total_tokens > 0 AND total_meals > 0)
+);
+
+-- Guest order items
+CREATE TABLE public.guest_order_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    order_id UUID REFERENCES public.guest_orders(id) ON DELETE CASCADE NOT NULL,
+    dish_id UUID REFERENCES public.dishes(id) ON DELETE RESTRICT NOT NULL,
+    quantity INTEGER DEFAULT 1 NOT NULL,
+    token_cost_per_item INTEGER NOT NULL,
+    protein_option TEXT,
+    special_requests TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT guest_order_items_quantity_check CHECK (quantity > 0),
+    CONSTRAINT guest_order_items_token_cost_check CHECK (token_cost_per_item > 0)
+);
+
+-- Guest token transactions
+CREATE TABLE public.guest_token_transactions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    guest_id UUID REFERENCES public.guest_profiles(id) ON DELETE CASCADE NOT NULL,
+    transaction_type guest_token_transaction_type NOT NULL,
+    amount INTEGER NOT NULL, -- Positive for credits, negative for debits
+    balance_after INTEGER NOT NULL,
+    description TEXT,
+    reference_id UUID, -- Reference to order, etc.
+    reference_type TEXT, -- 'order', 'refund', etc.
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT guest_token_transactions_amount_check CHECK (amount != 0),
+    CONSTRAINT guest_token_transactions_balance_check CHECK (balance_after >= 0)
 );
 
 -- Admin activity log for audit trail
@@ -394,6 +542,18 @@ CREATE INDEX idx_admin_users_role ON public.admin_users(role);
 CREATE INDEX idx_admin_users_active ON public.admin_users(is_active);
 CREATE INDEX idx_admin_activity_log_admin_user ON public.admin_activity_log(admin_user_id);
 CREATE INDEX idx_admin_activity_log_created_at ON public.admin_activity_log(created_at);
+
+-- Indexes for guest system
+CREATE INDEX idx_guest_profiles_email ON public.guest_profiles(email) WHERE email IS NOT NULL;
+CREATE INDEX idx_guest_profiles_phone ON public.guest_profiles(phone) WHERE phone IS NOT NULL;
+CREATE INDEX idx_guest_profiles_expires ON public.guest_profiles(expires_at) WHERE is_active = true;
+CREATE INDEX idx_guest_orders_guest_id ON public.guest_orders(guest_id);
+CREATE INDEX idx_guest_orders_tracking_token ON public.guest_orders(tracking_token);
+CREATE INDEX idx_guest_orders_status ON public.guest_orders(status);
+CREATE INDEX idx_guest_addresses_guest_id ON public.guest_addresses(guest_id);
+CREATE INDEX idx_guest_cart_items_cart_id ON public.guest_cart_items(cart_id);
+CREATE INDEX idx_guest_order_items_order_id ON public.guest_order_items(order_id);
+CREATE INDEX idx_guest_token_transactions_guest_id ON public.guest_token_transactions(guest_id);
 
 -- User shopping carts
 CREATE TABLE public.user_carts (
